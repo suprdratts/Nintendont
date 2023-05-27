@@ -1,7 +1,7 @@
 #ifndef _MELEE_CODES_H
 #define _MELEE_CODES_H
 
-#define MELEE_CODES_CF_OPTION_COUNT 3
+#define MELEE_CODES_CF_OPTION_COUNT 5
 #define MELEE_CODES_VERSION_OPTION_COUNT 2
 #define MELEE_CODES_MODS_OPTION_COUNT 4
 #define MELEE_CODES_LAG_REDUCTION_OPTION_COUNT 3
@@ -40,7 +40,7 @@ typedef struct MeleeCodeLineItem
 {
 	const int identifier; // unique identifier for a line item
 	const char *name;
-	const char *const *description;
+	const char *const *description; // max lines is 18, line length should be <= 36
 	const int defaultValue;
 	const int optionCount;
 	const MeleeCodeOption **options;

@@ -2,6 +2,8 @@
 
 #include "../../kernel/gecko/g_ucf.h" // UCF codeset
 #include "../../kernel/gecko/g_ucf_stealth.h" // UCF Stealth
+#include "../../kernel/gecko/g_ucf_084.h" // UCF codeset
+#include "../../kernel/gecko/g_ucf_084_stealth.h" // UCF Stealth
 
 #include "../../kernel/gecko/g_pal.h" // PAL codeset
 
@@ -50,23 +52,47 @@ const MeleeCodeOption cfOptionStealthUcf = {
 	g_ucf_stealth, // code
 };
 
+const MeleeCodeOption cfOptionUcf084 = {
+	4, // value
+	"UCF 0.84 RC", // name
+	g_ucf_084_size, // codeLen
+	g_ucf_084, // code
+};
+
+const MeleeCodeOption cfOptionStealthUcf084 = {
+	5, // value
+	"Stealth 0.84", // name
+	g_ucf_084_stealth_size, // codeLen
+	g_ucf_084_stealth, // code
+};
+
 const MeleeCodeOption *cfOptions[MELEE_CODES_CF_OPTION_COUNT] = {
 	&cfOptionOff,
 	&cfOptionUcf,
 	&cfOptionStealthUcf,
+	&cfOptionUcf084,
+	&cfOptionStealthUcf084,
 };
 
+// an additional space was added to all lines to accomdate "Stealth 0.84"
+// we can remove them once 0.84 is the only option
 static const char *cfDescription[] = {
 	"The type of controller fix to apply",
 	"",
-	"  [UCF]",
-	"    Will enable UCF 0.8. Includes",
-	"    dashback, shield drop, and",
-	"    wiggle out of tumble.",
+	"   [UCF]",
+	"     Will enable UCF 0.8. Includes",
+	"     dashback, shield drop, and",
+	"     wiggle out of tumble",
 	"",
-	"  [Stealth]",
-	"    Enables UCF 0.8 without the",
-	"    CSS text",
+	"   [Stealth]",
+	"     Enables UCF 0.8 without the",
+	"     CSS text",
+	"",
+	"   [UCF 0.84 RC]",
+	"     UCF 0.84 Release candidate. Adds",
+	"     1.0 cardinals, frame 1 SDI fix,",
+	"     dbooc fix, and shield drop",
+	"     range up conditional increase.",
 	NULL
 };
 
