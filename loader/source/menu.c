@@ -168,11 +168,19 @@ static const char *desc_networking[] = {
 	"in order to use this feature.",
 	NULL
 };
-static const char *desc_slippi_file_write[] = {
+static const char *desc_slippi_replays[] = {
 	"Write Slippi replays to a",
 	"secondary storage device.",
 	"Requires a USB AND SD device",
 	"to be plugged in.",
+	NULL
+};
+static const char *desc_slippi_replays_led[] = {
+    "Use the Disc Drive LED to",
+    "indicate replay device status.",
+    "The LED will remain on while",
+    "the replay device is inserted",
+    "and working properly.",
 	NULL
 };
 static const char *desc_slippi_port_a[] = {
@@ -808,17 +816,17 @@ static void Menu_GameSelection_Redraw(MenuCtx *ctx)
 		{
 			gamelist_y += 20;
 
-			PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+340, gamelist_y, "[Slippi] ");
-			PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+340+(9*10), gamelist_y, "NET: ");
+			PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+320, gamelist_y, "[Slippi] ");
+			PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+320+(9*10), gamelist_y, "NET: ");
 			PrintFormat(DEFAULT_SIZE, (ncfg->Config & (NIN_CFG_NETWORK)) ? GREEN : RED, 
-				MENU_POS_X+340+(13*10), gamelist_y, "%-3s", (ncfg->Config & (NIN_CFG_NETWORK)) ? "ON" : "OFF");
+				MENU_POS_X+320+(13*10), gamelist_y, "%-3s", (ncfg->Config & (NIN_CFG_NETWORK)) ? "ON" : "OFF");
 
-			PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+340+(17*10), gamelist_y, "FILE: ");
-			PrintFormat(DEFAULT_SIZE, (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)) ? GREEN : RED, MENU_POS_X+340+(22*10),
-					gamelist_y, "%-3s", (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)) ? "ON" : "OFF");
+			PrintFormat(DEFAULT_SIZE, BLACK, MENU_POS_X+320+(17*10), gamelist_y, "REPLAY: ");
+			PrintFormat(DEFAULT_SIZE, (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS)) ? GREEN : RED, MENU_POS_X+320+(24*10),
+					gamelist_y, "%-3s", (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS)) ? "ON" : "OFF");
 
 			// Warn the user if they're running low on USB disk space
-			if ((usb_attached == 1) && (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)))
+			if ((usb_attached == 1) && (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS)))
 			{
 				int lowUsbWarnThreshold = 500;
 				int lowUsbErrorThreshold = 50;
@@ -958,8 +966,10 @@ static const char *const *GetSettingsDescription(const MenuCtx *ctx)
 		switch (ctx->settings.posX) {
 		case NIN_SLIPPI_NETWORKING: 
 			return desc_networking;
-		case NIN_SLIPPI_FILE_WRITE: 
-			return desc_slippi_file_write;
+		case NIN_SLIPPI_REPLAYS: 
+			return desc_slippi_replays;
+		case NIN_SLIPPI_REPLAYS_LED:
+			return desc_slippi_replays_led;
 		case NIN_SLIPPI_PORT_A: 
 			return desc_slippi_port_a;
 		case NIN_SLIPPI_CUSTOM_CODES:
@@ -1012,13 +1022,22 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 		case PAGE_SLIPPI_SETTINGS: ;
 			const MeleeCodeConfig *codeConfig = GetMeleeCodeConfig();
 
+			// Skip replays led line if replays are off
+			if (ctx->settings.posX == NIN_SLIPPI_REPLAYS_LED && !(ncfg->Config & NIN_CFG_SLIPPI_REPLAYS))
+				ctx->settings.posX++;
+
 			// Handle slippi page position
 			if (ctx->settings.posX > NIN_SLIPPI_DYNAMIC_CODES_START + codeConfig->lineItemCount - 1)
 				ctx->settings.posX = 0;
-			else if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || 
+			else if (ctx->settings.posX == NIN_SLIPPI_BLANK_0)
+			{
+				// skip
+				ctx->settings.posX++;
+			}
+			else if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 ||
 				ctx->settings.posX == NIN_SLIPPI_BLANK_2)
 			{
-				// Settings 3 and 4 are skipped
+				// skip
 				ctx->settings.posX = NIN_SLIPPI_DYNAMIC_CODES_START;
 			}
 			break;
@@ -1055,15 +1074,22 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 
 			// Handle slippi page positioning
 			if (ctx->settings.posX < 0)
-			{
 				ctx->settings.posX = NIN_SLIPPI_DYNAMIC_CODES_START + codeConfig->lineItemCount - 1;
+			else if (ctx->settings.posX == NIN_SLIPPI_BLANK_0)
+			{
+				// skip
+				ctx->settings.posX--;
 			}
-
-			if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
+			else if (ctx->settings.posX == NIN_SLIPPI_BLANK_1 || ctx->settings.posX == NIN_SLIPPI_BLANK_2)
 			{
 				// Blank spots are skipped
 				ctx->settings.posX = NIN_SLIPPI_DYNAMIC_CODES_START - 3;
 			}
+
+			// Skip replays led line if replays are off
+			if (ctx->settings.posX == NIN_SLIPPI_REPLAYS_LED && !(ncfg->Config & NIN_CFG_SLIPPI_REPLAYS))
+				ctx->settings.posX--;
+
 			break;
 		}
 		ctx->redraw = true;
@@ -1240,8 +1266,13 @@ static void Menu_Settings_InputHandler(MenuCtx *ctx)
 			case NIN_SLIPPI_NETWORKING:
 				ncfg->Config ^= (NIN_CFG_NETWORK);
 				break;
-			case NIN_SLIPPI_FILE_WRITE:
-				ncfg->Config ^= (NIN_CFG_SLIPPI_FILE_WRITE);
+			case NIN_SLIPPI_REPLAYS:
+				ncfg->Config ^= (NIN_CFG_SLIPPI_REPLAYS);
+				break;
+			case NIN_SLIPPI_REPLAYS_LED:
+				ncfg->ReplaysLED++;
+				if (ncfg->ReplaysLED > 1)
+					ncfg->ReplaysLED = 0;
 				break;
 			case NIN_SLIPPI_PORT_A:
 				ncfg->Config ^= (NIN_CFG_SLIPPI_PORT_A);
@@ -1409,10 +1440,18 @@ static void Menu_Settings_Redraw(MenuCtx *ctx)
 				"%-18s:%-4s", "Slippi Networking", (ncfg->Config & (NIN_CFG_NETWORK)) ? "Yes" : "No ");
 		ListLoopIndex++;
 
-		// Slippi USB
+		// Slippi Replays
 		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
-				"%-18s:%-4s", "Slippi File Write", (ncfg->Config & (NIN_CFG_SLIPPI_FILE_WRITE)) ? "Yes" : "No ");
+				"%-18s:%-4s", "Slippi Replays", (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS)) ? "Yes" : "No ");
 		ListLoopIndex++;
+
+		if (ncfg->Config & (NIN_CFG_SLIPPI_REPLAYS))
+		{
+			// Slippi Replays LED
+			PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
+					"%-18s:%-4s", "Slippi Replays LED", ncfg->ReplaysLED == 0 ? "Yes" : "No");
+		}
+		ListLoopIndex += 2;
 
 		// Slippi Port A
 		PrintFormat(MENU_SIZE, BLACK, MENU_POS_X + SETTINGS_X_START, SettingY(ListLoopIndex),
