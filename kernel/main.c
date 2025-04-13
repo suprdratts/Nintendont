@@ -82,7 +82,7 @@ extern struct ipcmessage DI_CallbackMsg;
 extern u32 DI_MessageQueue;
 
 // Used for storage device [un]mounting (0 == SD, 1 == USB)
-static FATFS *devices[2];
+FATFS *devices[2];
 
 // Device names
 static const WCHAR fatSdName[] = {'s', 'd', ':', 0};
@@ -191,7 +191,6 @@ int _main( int argc, char *argv[] )
 
 	u32 SlippiFileWrite = ConfigGetConfig(NIN_CFG_SLIPPI_REPLAYS);
 	u32 UseUSB = ConfigGetUseUSB(); // Returns 0 for SD, 1 for USB
-	SetDiskFunctions(UseUSB);
 
 
 	bool shouldBootUsb = UseUSB || SlippiFileWrite;

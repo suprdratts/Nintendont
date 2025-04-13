@@ -43,6 +43,8 @@ bool driveTimerSet;
 // replays LED setting
 bool replaysLED;
 
+extern FATFS *devices[2];
+
 void SlippiFileWriterInit()
 {
 	replaysLED = ConfigGetReplaysLED() == 0;
@@ -207,7 +209,6 @@ static u32 SlippiHandlerThread(void *arg)
 	driveTimer = read32(HW_TIMER);
 	driveTimerSet = false;
 
-	FATFS device;
 	bool failedToMount = false;
 	bool hasFile = false;
 	bool mounted = true;
@@ -232,7 +233,7 @@ static u32 SlippiHandlerThread(void *arg)
 			}
 			else if (!mounted && !failedToMount)
 			{
-				if (f_mount_char(&device, "usb:", 1) == FR_OK)
+				if (f_mount_char(devices[1], "usb:", 1) == FR_OK)
 				{
 					// ignore anything already in the buffer. users should not expect to record a
 					// game if the usb device is inserted after game start.
