@@ -1,9 +1,21 @@
 #include "../../../common/include/CommonConfig.h"
 #include "global.h"
+
+#if 1
+
 #include "HID.h"
 #include "hidmem.h"
 #include "wiidrc.h"
 #define PAD_CHAN0_BIT				0x80000000
+
+#define useDRC	1
+
+// This has been made possible on the games themselves
+#if 0
+#define HEROES	1
+#define SHADOW	1
+#define SONIC2	1
+#endif
 
 static u32 stubsize = 0x1800;
 static vu32 *stubdest = (vu32*)0x80004000;
@@ -17,6 +29,44 @@ static vu32* HID_STATUS = (vu32*)0xD3003440;
 static vu32* HIDMotor = (vu32*)0x93003020;
 static vu32* PadUsed = (vu32*)0x93003024;
 
+//static vu32* HW_VIDIM = (vu32*)0xCD80001C;
+//static vu32* HW_VISOLID = (vu32*)0xCD800024;
+
+//static u32 is_patched = 0;
+
+//static vu32* GLOBAL_RINGS = (vu32*)0x93003434;
+//static vu32* UPDATE_RING  = (vu32*)0x93003438; //to get over sum op not working
+//static u32 updateRing = 0;
+
+//NOTE: Heroes is not 100% yet, sometimes rings get added (check pits)
+#ifdef HEROES
+static vu16* HEROES_RING = (vu16*)0x80303D2A; //latter 16 bit
+//static vu32* HEROES_GOAL = (vu32*)0x802D5AF0; //u32 bool,  fails often, value is for other stuff
+static vu16* HEROES_GOAL = (vu16*)0x809D9A96; //u32 bool, test
+//static vu32* HEROES_GOAL = (vu32*)0x80452C40; //test 
+static vu32* isHeroes    = (vu32*)0x80000000; //constant value to determine game
+#endif
+
+#ifdef SHADOW
+static vu16* SHADOW_RING = (vu16*)0x8057670E;
+static vu32* SHADOW_GOAL = (vu32*)0x80575F94; //00010000 = goal reached
+static vu32* isShadow    = (vu32*)0x80000000; //constant value to determine game
+#endif
+
+#ifdef SONIC2
+static vu16* SONIC2_RING = (vu16*)0x80C463E0; //first 16 bit
+static vu16* SONIC2_GOAL = (vu16*)0x80C61CB2; //latter 16 bit
+static vu32* SONIC2_SECU = (vu32*)0x80C68144; //80C68146 byte, security for goal
+static vu32* isSMC       = (vu32*)0x802AD6D0; //constant value to determine game
+#endif
+
+//static u32 PrevWiiButton = 0;
+//static u8 WiiChan = 1;
+//static u8 forcePlayer = 0; // invalid value, so it first picks a free slot
+static vu32* P1force = (vu32*)0x932F0094;
+static vu32* wiiPort = (vu32*)0x932F0098;
+//static vu32* CCDirect = (vu32*)0x932F009C; // why does this break screenshots?
+
 static vu32* PADIsBarrel = (vu32*)0xD3003130;
 static vu32* PADBarrelEnabled = (vu32*)0xD3003140;
 static vu32* PADBarrelPress = (vu32*)0xD3003150;
@@ -29,12 +79,20 @@ static vu32* PADSwitchRequired = (vu32*)0x93003064;
 static vu32* PADForceConnected = (vu32*)0x93003068;
 static vu32* drcAddress = (vu32*)0x9300306C;
 static vu32* drcAddressAligned = (vu32*)0x93003070;
+static vu32* CCDirect = (vu32*)0x93003074;
+static vu32* xfbMagic = (vu32*)0x92400000;
 
 static u32 PrevAdapterChannel1 = 0;
 static u32 PrevAdapterChannel2 = 0;
 static u32 PrevAdapterChannel3 = 0;
 static u32 PrevAdapterChannel4 = 0;
 static u32 PrevDRCButton = 0;
+
+//fix the GC's sticks
+static s8 OffsetX[NIN_CFG_MAXPAD] = {0};
+static s8 OffsetY[NIN_CFG_MAXPAD] = {0};
+static s8 OffsetCX[NIN_CFG_MAXPAD] = {0};
+static s8 OffsetCY[NIN_CFG_MAXPAD] = {0};
 
 #define DRC_SWAP (1<<16)
 
@@ -93,6 +151,10 @@ const s8 DEADZONE = 0x1A;
 	else if(tmp_stick16 < -0x80) tmp_stick8 = -0x80; \
 	else tmp_stick8 = (s8)tmp_stick16;
 
+//watchthis
+#endif
+
+#if 1
 u32 _start(u32 calledByGame)
 {
 	// Registers r1,r13-r31 automatically restored if used.
@@ -100,6 +162,78 @@ u32 _start(u32 calledByGame)
 	// Register r2 not changed
 	u32 Rumble = 0, memInvalidate, memFlush;
 	u32 used = 0;
+
+#ifdef HEROES
+//test rings
+//u16 rings = *HEROES_RING;
+//if(rings > 0)
+  //*HEROES_RING = *HEROES_RING & 0xFFFF0000 | 0x00FF;
+
+	//ring collection stuff
+	if(*HEROES_GOAL == 1 && *HEROES_RING > 0 && *isHeroes == 0x47395345) {
+		// do the stuff
+		if(*HEROES_RING < 0x3E8)
+			*GLOBAL_RINGS += *HEROES_RING;
+		
+		if(*GLOBAL_RINGS > 9999999)
+			*GLOBAL_RINGS = 9999999;
+		
+		//reset rings
+		//*HEROES_RING = 0;
+		
+		//reset goal
+		*HEROES_GOAL = 0; // alt to keep rings for score
+	}
+#endif
+
+#ifdef SHADOW
+	//ring collection stuff
+	if(*SHADOW_GOAL == 0x00010000 && *SHADOW_RING > 0 && *isShadow == 0x47555045) {
+		// do the stuff
+		if(*SHADOW_RING < 0x3E8)
+			*GLOBAL_RINGS += *SHADOW_RING;
+		
+		if(*GLOBAL_RINGS > 9999999)
+			*GLOBAL_RINGS = 9999999;
+		
+		//reset rings
+		//*SHADOW_RING = 0;
+		
+		//reset goal
+		*SHADOW_GOAL = 0x0;
+	}
+#endif
+
+#ifdef SONIC2
+	if(*SONIC2_GOAL == 1 && *SONIC2_RING > 0 && *SONIC2_SECU == 0x0100 && *isSMC == 0x75676765) {
+		// Sonic 2 for now
+		if(*SONIC2_RING < 0x3E8)
+			*GLOBAL_RINGS += *SONIC2_RING;
+		
+		if(*GLOBAL_RINGS > 9999999)
+			*GLOBAL_RINGS = 9999999;
+		
+		//reset rings
+		*SONIC2_RING = 0;
+	}
+#endif
+
+	if(*RESET_STATUS == 0x9DEA) {
+		//*HW_VISOLID |= 1; // Sets VI to black
+		//*HW_VISOLID &= ~1; // Clear
+		//but software doesn't know to restore from it.
+		
+	//	*HW_VIDIM &= ~1 << 7;
+		
+		/**HW_VIDIM |= 1 << 7; // Enable dimming
+		*HW_VIDIM |= 1 << 5;
+		*HW_VIDIM |= 1 << 4;
+		*HW_VIDIM |= 1 << 3;
+		*HW_VIDIM |= 1 << 2; //chroma
+		*HW_VIDIM |= 1 << 1;
+		*HW_VIDIM |= 1 << 0;*/
+		goto DoExit;
+	}
 
 	PADStatus *Pad = (PADStatus*)(0x93003100); //PadBuff
 	u32 MaxPads;
@@ -115,10 +249,13 @@ u32 _start(u32 calledByGame)
 	u32 HIDPad = (*HID_STATUS == 0) ? HID_PAD_NONE : HID_PAD_NOT_SET;
 	u32 chan;
 
+	s16 tempStick;
+
 	memInvalidate = (u32)SIInited;
 	asm volatile("dcbi 0,%0; sync" : : "b"(memInvalidate) : "memory");
 
 	/* For Wii VC */
+#ifdef useDRC
 	if(calledByGame && *drcAddress)
 	{
 		used |= (1<<0); //always use channel 0
@@ -132,7 +269,7 @@ u32 _start(u32 calledByGame)
 		asm volatile("dcbi 0,%0; sync" : : "b"(memInvalidate) : "memory");
 		vu8 *i2cdata = (vu8*)(*drcAddress);
 		//check for console shutdown request
-		if(i2cdata[1] & 0x80) goto DoShutdown;
+	//	if(i2cdata[1] & 0x80) goto DoShutdown;
 		//Start out mapping buttons first
 		u16 button = 0;
 		u16 drcbutton = (i2cdata[2]<<8) | (i2cdata[3]);
@@ -191,13 +328,13 @@ u32 _start(u32 calledByGame)
 		if(drcbutton & WIIDRC_BUTTON_HOME) goto DoExit;
 		//write in mapped out buttons
 		Pad[0].button = button;
-		if((Pad[0].button&0x1030) == 0x1030) //reset by pressing start, Z, R
-		{
+		//if((Pad[0].button&0x1030) == 0x1030) //reset by pressing start, Z, R
+		//{
 			/* reset status 3 */
-			*RESET_STATUS = 0x3DEA;
-		}
-		else /* for held status */
-			*RESET_STATUS = 0;
+		//	*RESET_STATUS = 0x3DEA;
+		//}
+		//else /* for held status */
+			//*RESET_STATUS = 0;
 		//do scale, deadzone and clamp
 		s8 tmp_stick8; s16 tmp_stick16;
 		_DRC_BUILD_TMPSTICK(i2cdata[4]);
@@ -210,7 +347,9 @@ u32 _start(u32 calledByGame)
 		Pad[0].substickY = tmp_stick8;
 	}
 	else
+#endif
 	{
+
 		for (chan = 0; (chan < MaxPads); ++chan)
 		{
 			/* transfer the actual data */
@@ -289,7 +428,7 @@ u32 _start(u32 calledByGame)
 			{
 				if(Pad[chan].button & 0x80)
 					Rumble |= ((1<<31)>>chan);
-				Pad[chan].stickX = ((PADButtonsStick>>8)&0xFF)-128;
+				Pad[chan].stickX = ((PADButtonsStick>>8)&0xFF)-128; // Was 128
 				Pad[chan].stickY = ((PADButtonsStick>>0)&0xFF)-128;
 				Pad[chan].substickX = ((PADTriggerCStick>>24)&0xFF)-128;
 				Pad[chan].substickY = ((PADTriggerCStick>>16)&0xFF)-128;
@@ -307,19 +446,63 @@ u32 _start(u32 calledByGame)
 				else
 					Pad[chan].triggerRight = 0;
 			}
-
+			
+			// No.
 			/* exit by pressing B,Z,R,PAD_BUTTON_DOWN */
-			if((Pad[chan].button&0x234) == 0x234)
+			/*if((Pad[chan].button&0x234) == 0x234)
 			{
 				goto DoExit;
-			}
-			if((Pad[chan].button&0x1030) == 0x1030)	//reset by pressing start, Z, R
+			}*/
+			
+			// fix for overflow and underflow
+			if((Pad[chan].button&0x1c00) == 0x1c00 || ((*PadUsed & (1 << chan)) == 0))
 			{
-				/* reset status 3 */
-				*RESET_STATUS = 0x3DEA;
+				OffsetX[chan] = Pad[chan].stickX;
+				OffsetY[chan] = Pad[chan].stickY;
+				OffsetCX[chan] = Pad[chan].substickX;
+				OffsetCY[chan] = Pad[chan].substickY;
 			}
-			else /* for held status */
-				*RESET_STATUS = 0;
+
+			tempStick = (s8)Pad[chan].stickX;
+			tempStick -= OffsetX[chan];
+			if (tempStick > 0x7F)
+				tempStick = 0x7F;
+			else if (tempStick < -0x80)
+				tempStick = -0x80;
+			Pad[chan].stickX = (s8)tempStick;
+
+			tempStick = (s8)Pad[chan].stickY;
+			tempStick -= OffsetY[chan];
+			if (tempStick > 0x7F)
+				tempStick = 0x7F;
+			else if (tempStick < -0x80)
+				tempStick = -0x80;
+			Pad[chan].stickY = (s8)tempStick;
+
+			tempStick = (s8)Pad[chan].substickX;
+			tempStick -= OffsetCX[chan];
+			if (tempStick > 0x7F)
+				tempStick = 0x7F;
+			else if (tempStick < -0x80)
+				tempStick = -0x80;
+			Pad[chan].substickX = (s8)tempStick;
+
+			tempStick = (s8)Pad[chan].substickY;
+			tempStick -= OffsetCY[chan];
+			if (tempStick > 0x7F)
+				tempStick = 0x7F;
+			else if (tempStick < -0x80)
+				tempStick = -0x80;
+			Pad[chan].substickY = (s8)tempStick;
+			
+			// Heh, nope.
+			//if((Pad[chan].button&0x1030) == 0x1030)	//reset by pressing start, Z, R
+			//{
+				/* reset status 3 */
+			//	*RESET_STATUS = 0x3DEA;
+			//}
+			//else /* for held status */
+				//*RESET_STATUS = 0;
 			/* clear unneeded button attributes */
 			Pad[chan].button &= 0x9F7F;
 			/* set current command */
@@ -501,13 +684,13 @@ u32 _start(u32 calledByGame)
 			button |= PAD_BUTTON_START;
 		Pad[chan].button = button;
 
-		if((Pad[chan].button&0x1030) == 0x1030)	//reset by pressing start, Z, R
-		{
+		//if((Pad[chan].button&0x1030) == 0x1030)	//reset by pressing start, Z, R
+		//{
 			/* reset status 3 */
-			*RESET_STATUS = 0x3DEA;
-		}
-		else /* for held status */
-			*RESET_STATUS = 0;
+			//*RESET_STATUS = 0x3DEA;
+		//}
+		//else /* for held status */
+			//*RESET_STATUS = 0;
 
 		/* then analog sticks */
 		s8 stickX, stickY, substickX, substickY;
@@ -668,9 +851,10 @@ u32 _start(u32 calledByGame)
 	if(MaxPads == 0) //wiiu
 		MaxPads = 4;
 
-	for(chan = 0; chan < MaxPads; ++chan)	//bluetooth controller loop
+	for(chan = *wiiPort; chan < MaxPads; ++chan)	//bluetooth controller loop
 	{
-		if(used & (1<<chan))
+		//skip this to override real GC controller
+		if((used & (1<<chan)) && *P1force != 1)
 		{
 			BTPadFree[chan] = 0;
 			continue;
@@ -774,7 +958,252 @@ u32 _start(u32 calledByGame)
 				button |= PAD_TRIGGER_Z;
 		}
 		
-// Nunchuck Buttons
+// Nunchuk
+#if 1
+        // need to configure channel
+		if((BTPad[chan].used & C_NUN))	//nunchuck not being configured
+		{
+			if(BTPad[chan].button & WM_BUTTON_TWO)
+				button |= PAD_BUTTON_A;
+			if(BTPad[chan].button & WM_BUTTON_ONE)
+				button |= PAD_BUTTON_B;
+			if(BTPad[chan].button & WM_BUTTON_A)
+				button |= PAD_TRIGGER_R;
+			if(BTPad[chan].button & WM_BUTTON_B)
+				button |= PAD_TRIGGER_L;
+			if(BTPad[chan].button & WM_BUTTON_MINUS) {
+				button |= PAD_TRIGGER_Z; // Sonic Mega Collection needs Z
+				button |= PAD_BUTTON_X; // AGB emulator doesn't use Z, but needs SELECT
+			//	button |= PAD_BUTTON_Y;	// Fire Emblem needs Y for character status
+			
+				// Sonic Mega Collection needs C stick to change comic/manual pages
+				// use - and dpad to control c stick
+			}
+			if(BTPad[chan].button & WM_BUTTON_PLUS)
+				button |= PAD_BUTTON_START;
+
+			if(BTPad[chan].button & WM_BUTTON_LEFT)
+				button |= PAD_BUTTON_DOWN;
+			if(BTPad[chan].button & WM_BUTTON_RIGHT)
+				button |= PAD_BUTTON_UP;
+			if(BTPad[chan].button & WM_BUTTON_DOWN)
+				button |= PAD_BUTTON_RIGHT;
+			if(BTPad[chan].button & WM_BUTTON_UP)
+				button |= PAD_BUTTON_LEFT;
+			
+			// NOTE: Pad[chan].triggerLeft = 0xFF; is for full press but
+			// I haven't found a use for it yet.
+			
+			// need y button for FE PoR
+			if(BTPad[chan].button & WM_BUTTON_MINUS && BTPad[chan].button & WM_BUTTON_A)
+				button |= PAD_BUTTON_Y;
+			
+			// tricky c stick for SMC
+			if(BTPad[chan].button & WM_BUTTON_MINUS && BTPad[chan].button & WM_BUTTON_UP)
+				Pad[chan].substickX = -0x78;
+			if(BTPad[chan].button & WM_BUTTON_MINUS && BTPad[chan].button & WM_BUTTON_DOWN)
+				Pad[chan].substickX = 0x78;
+			
+			// HOME + A avoids user error
+			if(BTPad[chan].button & WM_BUTTON_HOME && BTPad[chan].button & WM_BUTTON_A)
+				goto DoExit;
+			else if(BTPad[chan].button & WM_BUTTON_HOME && BTPad[chan].button & WM_BUTTON_B
+					&& *xfbMagic != 0x58464231) {
+				u32 scrWidth;
+				u32 scrHeight;
+			//	vu16* viCLK = (vu16*)0xCC00206C;
+				vu16* HSW = (vu16*)0xCC002048;
+				vu16* ACV = (vu16*)0xCC002000;
+			//	scrWidth = (*HSW >> 8) * 16; // Animal Crossing lies??
+				scrWidth = (*HSW & 0xFF) << 3;
+			//	scrHeight = *ACV >> 4;
+			//	if(*viCLK != 1)
+			//		scrHeight *= 2;
+				
+				// geckodotnet does height differently
+				scrHeight = (((*ACV >> 8) << 5) | ((*ACV & 0xFF) >> 3)) & 0x07FE;
+				
+				if (scrHeight > 600) {
+					scrHeight /= 2;
+					scrWidth *= 2;
+				}
+			//	vu32* xfbMagic = (vu32*)0x92400000;
+				*xfbMagic = 0x58464231;
+				
+				vu8* bmpHDR = (vu8*)0x92400010;
+				vu8* xfbCopy = (vu8*)0x92500000;
+				
+				vu32* VI_FB_BASE = (vu32*)0xCC00201C;
+				vu8* current_xfb;
+				if(*VI_FB_BASE & (1 << 28))
+					current_xfb = (vu8 *)(((*VI_FB_BASE << 5) & 0xFFFFFF) | 0x81000000); // Spider-Man 2
+				else
+					current_xfb = (vu8 *)((*VI_FB_BASE & 0xFFFFFF) | 0x80000000);
+				
+				// X offset handling from geckodotnet
+				current_xfb -= ((*VI_FB_BASE & 0x0F000000) >> 24) << 3;
+				
+				// Check 80088980 in Animal Crossing.
+				// Why is Devolution's screenshot 608, while here it HAS to be 640?
+				// NES titles that use 240p are also not using the real size.
+				
+				if (current_xfb) {
+					vu32* xfbAddr = (vu32*)0x92400008;
+					*xfbAddr = *VI_FB_BASE;
+					
+					u32 sizeCopy = scrWidth * scrHeight * 2;
+					u32 c;
+					for(c = 0; c < (sizeCopy/4); ++c)
+						((u32*)xfbCopy)[c] = ((u32*)current_xfb)[c];
+#pragma pack(push, 1)
+					typedef struct {
+						u16 bfType;
+						u32 bfSize;
+						u16 bfReserved1;
+						u16 bfReserved2;
+						u32 bfOffBits;
+					} BITMAPFILEHEADER;
+
+					typedef struct {
+						u32 biSize;
+						s32 biWidth;
+						s32 biHeight;
+						u16 biPlanes;
+						u16 biBitCount;
+						u32 biCompression;
+						u32 biSizeImage;
+						s32 biXPelsPerMeter;
+						s32 biYPelsPerMeter;
+						u32 biClrUsed;
+						u32 biClrImportant;
+						u16 pad;
+					} BITMAPINFOHEADER;
+#pragma pack(pop)
+					u32 bodySize = scrWidth * scrHeight * 3;
+					u32 hdrFullSz = 0x38 + bodySize;
+					
+					// Save info
+					vu32* datSize = (vu32*)0x92400004;
+					*datSize = hdrFullSz;
+					
+					// NOTE: The Wii has instructions for doing this
+					hdrFullSz = ((hdrFullSz >> 24) & 0xff) |
+								((hdrFullSz << 8)  & 0xff0000) |
+								((hdrFullSz >> 8)  & 0xff00) |
+								((hdrFullSz << 24) & 0xff000000);
+					
+					bodySize = ((bodySize >> 24) & 0xff) |
+								((bodySize << 8)  & 0xff0000) |
+								((bodySize >> 8)  & 0xff00) |
+								((bodySize << 24) & 0xff000000);
+					
+					u32 leWidth = ((scrWidth >> 24) & 0xff) |
+								((scrWidth << 8)  & 0xff0000) |
+								((scrWidth >> 8)  & 0xff00) |
+								((scrWidth << 24) & 0xff000000);
+					u32 leHeight = ((scrHeight >> 24) & 0xff) |
+								((scrHeight << 8)  & 0xff0000) |
+								((scrHeight >> 8)  & 0xff00) |
+								((scrHeight << 24) & 0xff000000);
+					
+					BITMAPFILEHEADER bmfh = {0x424D, hdrFullSz, 0, 0, 0x38000000};
+					BITMAPINFOHEADER bmih = {0x28000000, leWidth, leHeight,
+					0x0100, 0x1800, 0, bodySize, 0, 0, 0, 0, 0};
+					
+					// Devolution sets PelsPerMeter to provide the exact aspect ratio,
+					// cool to have but WiiXplorer's BMP reader ignores it anyway.
+					
+					u8 *src1 = (u8 *)&bmfh;
+					u8 *src2 = (u8 *)&bmih;
+					
+					// Copy to start of BMP
+					for(c = 0; c < 0xE; ++c)
+						bmpHDR[c] = src1[c];
+					for(c = 0xE; c < 0x38; ++c)
+						bmpHDR[c] = src2[c-0xE];
+					
+					// geckodotnet seems to do this with just one loop.
+					// crediar's ycbcr2bmp isn't open source.
+					// Results seem to be a bit darker than expected
+					// but still looks OK.
+					
+					u32 move = 0x38;
+					s32 row, col, i, p = 0;
+					for (row = scrHeight - 1; row >= 0; row--) {
+					for (col = 0; col < scrWidth; col += 2) {
+						// NOTE: This code kept giving me wrong results
+						// so AI was used to fix it.
+						
+						// Calculate index for the YUYV/YCbCr422 macropixel
+						// Each iteration handles 2 pixels (4 bytes)
+						i = (row * scrWidth * 2) + (col * 2);
+
+						u8 y1 = xfbCopy[i];
+						u8 cb = xfbCopy[i+1];
+						u8 y2 = xfbCopy[i+2];
+						u8 cr = xfbCopy[i+3];
+
+						u8 ys[2] = {y1, y2};
+
+						for (p = 0; p < 2; p++) {
+							s32 r = ys[p] + 1.370705 * (cr - 128);
+							s32 g = ys[p] - 0.337633 * (cb - 128) - 0.698001 * (cr - 128);
+							s32 b = ys[p] + 1.732446 * (cb - 128);
+							
+							b = (u8)(b < 0 ? 0 : (b > 255 ? 255 : b));
+							g = (u8)(g < 0 ? 0 : (g > 255 ? 255 : g));
+							r = (u8)(r < 0 ? 0 : (r > 255 ? 255 : r));
+							
+							bmpHDR[move+0] = b;
+							bmpHDR[move+1] = g;
+							bmpHDR[move+2] = r;
+							move += 3;
+						}
+					}
+					}
+					u32 start = (u32)bmpHDR & ~31;
+					u32 end = (u32)bmpHDR + *datSize;
+					u32 addr = 0;
+					// Simple DCFlushRange
+					for (addr = start; addr < end; addr += 32) {
+						asm volatile("dcbf 0, %0" : : "r"(addr));
+					}
+					asm volatile("sync");
+				}
+				
+				//goto DoExit;
+			}
+			else if(BTPad[chan].button & WM_BUTTON_HOME && BTPad[chan].button & WM_BUTTON_MINUS
+				&& *xfbMagic == 0x58464231) {
+					*xfbMagic = 0;
+			}
+			
+		/*	else if(BTPad[chan].button & WM_BUTTON_HOME && BTPad[chan].button & WM_BUTTON_B) {
+				//++forcePlayer;
+				//if(forcePlayer > 3)
+				//	forcePlayer = 0;
+				++*wiiPort;
+				if(*wiiPort > 3)
+					*wiiPort = 0;
+			}*/
+			// Change channel/port
+		/*	if((!(PrevWiiButton & WM_BUTTON_HOME)) && BTPad[WiiChan].button & WM_BUTTON_HOME)
+				PrevWiiButton ^= DRC_SWAP;
+			PrevWiiButton = (PrevWiiButton & DRC_SWAP) | BTPad[WiiChan].button;
+			if(PrevWiiButton & DRC_SWAP)
+			{
+				++WiiChan;
+				if(WiiChan > 3)
+					WiiChan = 0;
+			}*/
+			
+		/*	if(BTPad[WiiChan].button & WM_BUTTON_HOME) {
+				++WiiChan;
+				if(WiiChan > 3)
+					WiiChan = 0;
+			}*/
+		}
+#else
 		if((BTPad[chan].used & C_NUN) && !(BTPad[chan].button & WM_BUTTON_TWO))	//nunchuck not being configured
 		{
 			switch ((BTPad[chan].used & (C_NSWAP1 | C_NSWAP2 | C_NSWAP3)) >> 5)
@@ -1301,21 +1730,11 @@ u32 _start(u32 calledByGame)
 			if(BTPad[chan].button & WM_BUTTON_HOME)
 				goto DoExit;
 		}	//end nunchuck configs
-
+#endif
 		if(BTPad[chan].used & (C_CC | C_CCP))
 		{
-			if(BTPad[chan].used & C_SWAP)
-			{	/* turn buttons quarter clockwise */
-				if(BTPad[chan].button & BT_BUTTON_B)
-					button |= PAD_BUTTON_A;
-				if(BTPad[chan].button & BT_BUTTON_Y)
-					button |= PAD_BUTTON_B;
-				if(BTPad[chan].button & BT_BUTTON_A)
-					button |= PAD_BUTTON_X;
-				if(BTPad[chan].button & BT_BUTTON_X)
-					button |= PAD_BUTTON_Y;
-			}
-			else
+			// Input cannot be changed during gameplay, it's just bad design.
+			if(*CCDirect == 1)
 			{
 				if(BTPad[chan].button & BT_BUTTON_A)
 					button |= PAD_BUTTON_A;
@@ -1324,6 +1743,17 @@ u32 _start(u32 calledByGame)
 				if(BTPad[chan].button & BT_BUTTON_X)
 					button |= PAD_BUTTON_X;
 				if(BTPad[chan].button & BT_BUTTON_Y)
+					button |= PAD_BUTTON_Y;
+			}
+			else
+			{
+				if(BTPad[chan].button & BT_BUTTON_B)
+					button |= PAD_BUTTON_A;
+				if(BTPad[chan].button & BT_BUTTON_Y)
+					button |= PAD_BUTTON_B;
+				if(BTPad[chan].button & BT_BUTTON_A)
+					button |= PAD_BUTTON_X;
+				if(BTPad[chan].button & BT_BUTTON_X)
 					button |= PAD_BUTTON_Y;
 			}
 			if(BTPad[chan].button & BT_BUTTON_START)
@@ -1340,36 +1770,36 @@ u32 _start(u32 calledByGame)
 			
 			if(BTPad[chan].button & BT_BUTTON_HOME)
 				goto DoExit;
-		}	
+		}
 		
 		Pad[chan].button = button;
 
 //#define DEBUG_cStick	1
 		#ifdef DEBUG_cStick
-			//mirrors cStick on main Stick so f-Zero GX calibration can be used
+			//mirrors cStick on main Stick so F-Zero GX calibration can be used
 			Pad[chan].stickX = Pad[chan].substickX;
 			Pad[chan].stickY = Pad[chan].substickY;
 		#endif
 		
 //#define DEBUG_Triggers	1
 		#ifdef DEBUG_Triggers
-			//mirrors triggers on main Stick so f-Zero GX calibration can be used
+			//mirrors triggers on main Stick so F-Zero GX calibration can be used
 			Pad[chan].stickX = Pad[chan].triggerRight;
 			Pad[chan].stickY = Pad[chan].triggerLeft;
 		#endif
 
 		//exit by pressing B,Z,R,PAD_BUTTON_DOWN 
-		if((Pad[chan].button&0x234) == 0x234)
+		/*if((Pad[chan].button&0x234) == 0x234)
 		{
 			goto DoExit;
-		}
-		if((Pad[chan].button&0x1030) == 0x1030)	//reset by pressing start, Z, R
-		{
+		}*/
+		//if((Pad[chan].button&0x1030) == 0x1030)	//reset by pressing start, Z, R
+		//{
 			/* reset status 3 */
-			*RESET_STATUS = 0x3DEA;
-		}
-		else // for held status
-			*RESET_STATUS = 0;
+			//*RESET_STATUS = 0x3DEA;
+		//}
+		//else // for held status
+			//*RESET_STATUS = 0;
 	}
 
 	/* Some games always need the controllers "used" */
@@ -1407,7 +1837,7 @@ u32 _start(u32 calledByGame)
 		_CPU_ISR_Restore(level);
 	}
 	return Rumble;
-
+//3400FFFC = start of exit
 DoExit:
 	/* disable interrupts */
 	asm volatile("mfmsr 3 ; rlwinm 3,3,0,17,15 ; mtmsr 3");
@@ -1436,6 +1866,7 @@ DoExit:
 		"blr\n"
 	);
 	return 0;
+#if 0
 DoShutdown:
 	/* disable interrupts */
 	asm volatile("mfmsr 3 ; rlwinm 3,3,0,17,15 ; mtmsr 3");
@@ -1444,4 +1875,6 @@ DoShutdown:
 	/* reset status 7 (DoShutdown) */
 	*RESET_STATUS = 0x7DEA;
 	while(1) ;
+#endif
 }
+#endif

@@ -1,48 +1,100 @@
-### Nintendont
-A Wii Homebrew Project to play GC Games on Wii and vWii on Wii U
+# Nintendont
 
-### Features:
-* Works on Wii and Wii U (in vWii mode)
-* Full-speed loading from a USB device or an SD card.
-* Loads 1:1 and shrunken .GCM/.ISO disc images.
-* Loads games as extracted files (FST format)
-* Loads CISO-format disc images. (uLoader CISO format)
-* Memory card emulation
-* Play audio via disc audio streaming
-* Bluetooth controller support (Classic Controller (Pro), Wii U Pro Controller)
-* HID controller support via USB
-* Custom button layout when using HID controllers
-* Cheat code support
-* Changeable configuration of various settings
-* Reset/Power off via button combo (R + Z + Start) (R + Z + B + D-Pad Down)
-* Advanced video mode patching, force progressive and force 16:9 widescreen
-* Auto boot from loader
-* Disc switching
-* Use the official Nintendo GameCube controller adapter
+After years of working on this on and off, I think it's finally in a state that deserves to be shared.
 
-### Features: (Wii only)
-* Play retail discs
-* Play backups from writable DVD media (Old Wii only)
-* Use real memory cards
-* GBA-Link cable
-* WiiRd
-* Allow use of the Nintendo GameCube Microphone
+# New stuff
 
-### What Nintendont doesn't do yet:
-* BBA/Modem support
+* Path-based argument loading
+* Sideways Wii Remote
+* Blacks out when exiting
+* Power button exits game
+* MEM1 patching system via a patch.txt file
+* Handles game crashes by rebooting
+* Sets the horizontal position from SYSCONF
+* Wii Message Board playlog
+* Writes savefiles from Nintendo's GBA emulator
+* Saves pictures taken in Pokémon Box
+* GameCube menu boot jingle forcing from Swiss
+* GameCube menu 480p patch from Swiss
 
-### What Nintendont will never support:
-* Game Boy Player
+# Game Compatibility Tweaks
 
-### Quick Installation:
-1. Get the [loader.dol](loader/loader.dol?raw=true), rename it to boot.dol and put it in /apps/Nintendont/ along with the files [meta.xml](nintendont/meta.xml?raw=true) and [icon.png](nintendont/icon.png?raw=true).
-2. Copy your GameCube games to the /games/ directory. Subdirectories are optional for 1-disc games in ISO/GCM and CISO format.
-   * For 2-disc games, you should create a subdirectory /games/MYGAME/ (where MYGAME can be anything), then name disc 1 as "game.iso" and disc 2 as "disc2.iso".
-   * For extracted FST, the FST must be located in a subdirectory, e.g. /games/FSTgame/sys/boot.bin .
-3. Connect your storage device to your Wii or Wii U and start The Homebrew Channel.
-4. Select Nintendont.
+* Star Wars Rogue Squadron III Rebel Strike - no longer shows the glitched HP meter.
+* Pokémon Box Ruby & Sapphire - Adventure Mode finally boots the GBA games.
+* Tales of Symphonia - Consistent hangs no longer occur.
+* Namco Museum 50th Anniversary - Loading into games no longer has a pop sound.
+* Sonic Riders - The delay patch is adjusted to the absolute limit.
 
-### Notes
-* The Wii and Wii U SD card slot is known to be slow. If you're using an SD card and are having performance issues, consider either using a USB SD reader or a USB hard drive.
-* USB flash drives are known to be problematic.
-* Nintendont runs best with storage devices formatted with 32 KB clusters. (Use either FAT32 or exFAT.)
+
+# GBA Emulator Saving
+
+* The emulator required is from Interactive Multi-Game Demo Disc v16, other versions may work.
+* Supports games that use SRAM saves.
+* Games that use 128 KB savefiles have an internal list.
+* Other games need to be SRAM patched.
+* The savefile needs to be provided in the same directory as the game.
+* Savefiles are intended to be used with the FST format as data.sav, this means that for game.iso, the savefile is called game.isodata.sav
+* The FST format allows swapping ROMs quickly for testing the emulator.
+
+# Video
+[![Video backstory](https://img.youtube.com/vi/BbS-w6YMeiI/maxresdefault.jpg)](https://youtu.be/BbS-w6YMeiI)
+
+
+# Howto
+
+It's intended to be interchangeable with Devolution, so memory cards now go in the /apps/gc_devo/ folder with the memcard.bin filename.
+
+For the GameCube main menu it's /apps/gc_devo/ipl.bin, same goes for segaboot.bin.
+
+The loader.dol you can get from the "Releases" tab on this page can be placed on your SD card or USB device, use an app like USB Loader GX to set it as the main GameCube loader, and then launch a game.
+
+You can't load games from the internal interface itself, but you can specify an argument in the meta.xml, like: "usb:/games/Sonic Riders [GXEE8P]/game.iso" to autoboot a game, see the release pack for another example. Don't try renaming it to boot.dol without an argument in the meta.xml, otherwise it will just exit.
+
+If you specify an invalid path, it will let you know by showing it on the screen.
+
+For regular loading, use USB Loader GX, WiiFlow, etc. The internal interface isn't used because the loader would initialize the wiimote, making the boot process longer, the interface is also visually offensive.
+
+Only one storage device can be loaded, SD or USB. If the game is on USB, then that means every asset (memcard.bin, ipl.bin, cheats, etc.) must be on the same device.
+
+To exit a game with the GameCube controller, you must either press the power button, or connect a wiimote and press A+HOME.
+
+
+# Using patch.txt
+
+The following functions are possible:
+
+* "poke" = Writes a 32-bit value to the provided MEM1 address.
+* "pokeifequal" = Same as above but only if the first two arguments are true.
+* "rand" = Writes a randomized value, takes 5 arguments, addr, start, end, pos, initial value.
+* "triArcade" = If 1, it will stop parsing, useful for turning off big patches with the Triforce setting.
+* "wiiChan" = Override a controller port with the sideways Wii Remote.
+* "noVidpatch" = Clears all video patches, useful in some cases.
+* "noProgAsk" = Skips the "Progressive Scan" screen if the game supports it.
+* "iplJingle" = Force a specific boot jingle when using the GameCube menu, 1=baby, 2=kabuki, higher is random.
+* "noTrapFilter" = Tends to blur the screen when using composite cables.
+* "volume" = Change the volume of the AVE-RVL, 255 is the maximum, games that have a low volume may benefit.
+* "ccDirect" = Rotates the ABXY on the Classic Controller (untested!)
+* "mcdDelay" = Adjust the emulated memory card's access delay.
+* "noLoadStub" = Launches the System Menu on exit, needed for the playlog.
+* "writePlaylog" = If the arguments are ( 1, 0 , 0 ) it will use the opening.bnr title.
+* "hexPlaylog" = You can supply the title via hex codes, allowing more control of characters.
+
+Look at the included patch.txt for more examples, if you put a patch.txt file in the apps/gc_devo/ folder it will affect every game unless they already have their own specific patch.txt file.
+
+The poke commands are quite useful, they are built into a list that's cached to MEM2. Before the game starts, the patches are applied, if the game loads an executable, the patches will re-apply.
+
+Gecko codes rely on PADRead and OSSleepThread to work and that makes some scenarios impossible for certain codes, this is one of the reasons why my method is necessary for making certain mods.
+
+
+# Things to note
+
+While this is based on version 5.482, it merges most of the useful changes from later.
+
+BBA support was notably left out since I have no use for it, it's also not trivial to merge and requires testing. Nunchuk support has been completely removed.
+
+This isn't intended to replace Nintendont, it is not my focus. The compatibility fixes are available to anyone, but going forward, the patching system will be crucial for my mods, so this standalone release will continue being supported.
+
+
+# Why is this a hard fork?
+
+For convenience, and the main project seems to be considered inactive anyway.
