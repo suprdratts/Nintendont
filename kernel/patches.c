@@ -295,7 +295,8 @@ static FuncPattern NormalFPatterns[] =
 	{  0x28C,   70,    8,    8,   10,    4,	NULL,				FCODE___OSInitAudioSystem_A,"__OSInitAudioSystem",	"DBG A",	FGROUP___OSInitAudioSystem,	0 },
 	{  0x2B8,   77,    8,   12,   10,    4,	NULL,				FCODE___OSInitAudioSystem_B,"__OSInitAudioSystem",	"DBG B",	FGROUP___OSInitAudioSystem,	0 },
 #ifdef AUDIOSTREAM
-	{  0x420,  103,   23,   34,   32,    9,	NULL,				FCODE___DSPHandler,			"__DSPHandler",			NULL,		FGROUP___DSPHandler,		0 },
+	{  0x33C,   78,   16,   25,   28,    9,	NULL,				FCODE___DSPHandler,			"__DSPHandler",			"A",		FGROUP___DSPHandler,		0 },
+	{  0x420,  103,   23,   34,   32,    9,	NULL,				FCODE___DSPHandler,			"__DSPHandler",			"B",		FGROUP___DSPHandler,		0 },
 	{  0x508,  150,   23,   36,   33,    9,	NULL,				FCODE___DSPHandler_DBG,		"__DSPHandler",			"DBG",		FGROUP___DSPHandler,		0 },
 #else
 	{   0x94,   18,   10,    2,    0,    2,	DVDLowReadAudioNULL,sizeof(DVDLowReadAudioNULL),"DVDLowAudioStream",	"A",		FGROUP_DVDLowAudioStream,	0 },
@@ -586,6 +587,7 @@ static FuncPattern NinSOPatterns[] =
 	{   0x30C,  69,  11,   27,   23,   10,	SOCleanup,			SOCleanup_size,				"SOCleanup",			"B",		FGROUP_SOCleanup,			0 },
 	{   0x668, 133,  17,   45,   50,   16,  SOSocket,			SOSocket_size,				"SOSocket",				NULL,		FGROUP_NONE,				0 },
 	{   0x454,  82,  23,   26,   28,   23,	SOClose,			SOClose_size,				"__SOClose",			NULL,		FGROUP_NONE,				0 },
+	{   0x154,  13,  13,   13,   13,    1,	SOConnect,			SOConnect_size,				"SOConnect",			NULL,		FGROUP_NONE,				0 },
 	{   0x128,  15,   6,    4,   21,    3,	SOListen,			SOListen_size,				"SOListen",				NULL,		FGROUP_NONE,				0 },
 	{   0x2BC,  44,  15,   18,   29,    6,	SOAccept,			SOAccept_size,				"SOAccept",				NULL,		FGROUP_NONE,				0 },
 	{   0x120,  15,   4,    5,   25,    5,	SOBind,				SOBind_size,				"SOBind",				NULL,		FGROUP_NONE,				0 },
